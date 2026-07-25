@@ -3,15 +3,15 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 // Cloudflare R2 uses S3-compatible API
 const r2Client = new S3Client({
   region: "auto",
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint: `https://${process.env.R2_ACCOUNT_ID || "dummy"}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || "dummy",
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "dummy",
   },
 });
 
-const BUCKET_NAME = process.env.R2_BUCKET_NAME!;
-const PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+const BUCKET_NAME = process.env.R2_BUCKET_NAME || "dummy";
+const PUBLIC_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "https://dummy";
 
 /** MIME type → file extension mapping (shared across actions) */
 export const MIME_TO_EXT: Record<string, string> = {
