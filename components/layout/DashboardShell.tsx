@@ -183,6 +183,14 @@ export default function DashboardShell({ children, role, userName, userId, isCoo
   const currentLabel =
     navItems.find((n) => pathname === n.href || pathname.startsWith(n.href))?.label ?? "Dashboard";
 
+  // find the longest matching href for accurate active state
+  const activeItem = navItems.reduce((acc, item) => {
+    if (pathname === item.href || (item.href !== `/${role}/dashboard` && pathname.startsWith(item.href))) {
+      return !acc || item.href.length > acc.href.length ? item : acc;
+    }
+    return acc;
+  }, null as NavItem | null);
+
   return (
     <div 
       className="dashboard-layout relative overflow-x-hidden"
@@ -241,9 +249,7 @@ export default function DashboardShell({ children, role, userName, userId, isCoo
         {/* Nav links */}
         <nav className="sidebar-nav">
           {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== `/${role}/dashboard` && pathname.startsWith(item.href));
+            const isActive = activeItem?.href === item.href;
             return (
               <Link
                 key={item.href}

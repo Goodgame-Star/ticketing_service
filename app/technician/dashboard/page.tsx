@@ -4,7 +4,7 @@ import Link from "next/link";
 import Badge from "@/components/ui/Badge";
 import AvailableTickets from "./AvailableTickets";
 import RefreshButton from "./RefreshButton";
-import { Ticket, CheckCircle, Trophy } from "lucide-react";
+import { Ticket, CheckCircle, Trophy, PlusCircle } from "lucide-react";
 import { getUserTitles } from "@/lib/performance";
 
 export const metadata = { title: "Technician Dashboard — HNS IT Center" };
@@ -121,7 +121,12 @@ export default async function TechnicianDashboard() {
               </span>
             )}
           </div>
-          <RefreshButton />
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <Link href="/technician/tickets/create" className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <PlusCircle size={16} /> Create Ticket
+            </Link>
+            <RefreshButton />
+          </div>
         </div>
         <p style={{ color: "var(--text-muted)", marginTop: "0.25rem" }}>
           {isCoordinator ? "Manage your store and assigned tickets" : "Manage your assigned tickets and workload"}
