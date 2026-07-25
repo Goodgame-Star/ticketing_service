@@ -172,7 +172,7 @@ export default async function AdminLogsPage({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginTop: "1.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginTop: "1.5rem", flexWrap: "wrap" }}>
             {Array.from({ length: totalPages }).map((_, i) => {
               const p = i + 1;
               const params = new URLSearchParams();

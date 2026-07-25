@@ -138,7 +138,13 @@ export default function DashboardShell({ children, role, userName, userId, isCoo
     const deltaX = e.touches[0].clientX - touchStartX.current;
     const deltaY = e.touches[0].clientY - touchStartY.current;
     
-    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 10) {
+    // Wait for at least 25px of movement to determine swipe vs scroll intent
+    if (Math.abs(deltaX) < 25 && Math.abs(deltaY) < 25) {
+      return;
+    }
+
+    // Lock scrolling if movement is mostly vertical (requires very deliberate horizontal drag to swipe)
+    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.5) {
       isScrolling.current = true;
       isSwiping.current = false;
       setSwipeOffset(0);
