@@ -25,10 +25,12 @@ interface Props {
 export default function TicketChat({ ticketId, messages, currentUserId, customerName }: Props) {
   const [newMessage, setNewMessage] = useState("");
   const [isPending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -51,7 +53,7 @@ export default function TicketChat({ ticketId, messages, currentUserId, customer
         <h3 style={{ margin: 0, fontSize: "1rem" }}>Discussion</h3>
       </div>
       
-      <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+      <div ref={chatContainerRef} style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
         {messages.length === 0 ? (
           <div style={{ margin: "auto", color: "var(--text-muted)", fontSize: "0.875rem" }}>
             No messages yet. Send a message to start the discussion.
@@ -85,7 +87,7 @@ export default function TicketChat({ ticketId, messages, currentUserId, customer
             </div>
           ))
         )}
-        <div ref={bottomRef} />
+
       </div>
 
       <div style={{ padding: "1rem", borderTop: "1px solid var(--border-light)" }}>

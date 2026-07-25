@@ -7,7 +7,7 @@ import { customAlphabet } from "nanoid";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import { uploadToR2, getExt, getFileType } from "@/lib/r2";
 import { sendTicketStatusEmail } from "@/lib/email";
 
 const nanoid = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
@@ -93,42 +93,15 @@ export async function createTicketAction(formData: FormData) {
   let firstUploadedUrl: string | null = null;
 
   if (files.length > 0) {
-    const supabase = createServerSupabaseClient();
     const uploadOps = files.map(async (file) => {
       if (file.size === 0) return null;
 
-      const mimeToExt: Record<string, string> = {
-        "image/webp": "webp",
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/gif": "gif",
-        "video/webm": "webm",
-        "video/mp4": "mp4",
-        "video/quicktime": "mov",
-        "application/pdf": "pdf",
-      };
-      
-      const ext = mimeToExt[file.type] || file.name.split(".").pop()?.toLowerCase() || "bin";
+      const ext = getExt(file.type, file.name);
       const filename = `${ticket_code}_${nanoid()}.${ext}`;
-      const path = `${session.userId}/${filename}`;
+      const path = `tickets/${session.userId}/${filename}`;
 
-      const { data, error } = await supabase.storage
-        .from("attachments")
-        .upload(path, file, {
-          contentType: file.type,
-          upsert: false
-        });
-
-      if (error) {
-        console.error("Supabase Upload Error:", error);
-        throw new Error(`Upload failed for ${file.name}: ${error.message}`);
-      }
-
-      const { data: { publicUrl } } = supabase.storage.from("attachments").getPublicUrl(data.path);
-
-      let fileType: "image" | "video" | "pdf" = "pdf";
-      if (file.type.startsWith("image/")) fileType = "image";
-      if (file.type.startsWith("video/")) fileType = "video";
+      const publicUrl = await uploadToR2(file, path);
+      const fileType = getFileType(file.type);
 
       return { publicUrl, fileType };
     });
@@ -348,46 +321,22 @@ export async function markMessagesReadAction(ticketId: string) {
 
 // ─── Upload Attachments ────────────────────────────────────────────────────
 export async function uploadAttachmentsAction(ticketId: string, files: File[]) {
-  const supabase = createServerSupabaseClient();
-
-  // Upload all files in parallel (instead of sequential loop)
+  // Upload all files to R2 in parallel
   await Promise.all(
     files.map(async (file) => {
-      // Derive extension from MIME type (reliable for camera files like HEIC/MOV)
-      // After client-side compression, images are WebP and videos are WebM
-      const mimeToExt: Record<string, string> = {
-        "image/webp": "webp",
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/gif": "gif",
-        "video/webm": "webm",
-        "video/mp4": "mp4",
-        "video/quicktime": "mov",
-        "application/pdf": "pdf",
-      };
-      const ext =
-        mimeToExt[file.type] ||
-        file.name.split(".").pop()?.toLowerCase() ||
-        "bin";
-      const path = `${ticketId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const ext = getExt(file.type, file.name);
+      const path = `tickets/${ticketId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-      const { data, error } = await supabase.storage
-        .from("attachments")
-        .upload(path, file, { contentType: file.type });
+      try {
+        const publicUrl = await uploadToR2(file, path);
+        const fileType = getFileType(file.type);
 
-      if (error) return;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("attachments").getPublicUrl(data.path);
-
-      let fileType: "image" | "video" | "pdf" = "pdf";
-      if (file.type.startsWith("image/")) fileType = "image";
-      if (file.type.startsWith("video/")) fileType = "video";
-
-      await db.ticketAttachment.create({
-        data: { ticket_id: ticketId, file_url: publicUrl, file_type: fileType },
-      });
+        await db.ticketAttachment.create({
+          data: { ticket_id: ticketId, file_url: publicUrl, file_type: fileType },
+        });
+      } catch (err) {
+        console.error("[R2 UPLOAD ERROR]", err);
+      }
     })
   );
 

@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { sendTicketStatusEmail } from "@/lib/email";
+import { uploadToR2, getExt, getFileType } from "@/lib/r2";
 
 function getTicketPoints(type: string, deviceType?: string | null): number {
   if (type === "pc_build") return 4;
@@ -188,9 +189,6 @@ export async function updateTicketStatusAction(formData: FormData) {
     let uploadedFiles: { publicUrl: string, fileType: "image" | "video" | "pdf" }[] = [];
 
     if (validFiles.length > 0) {
-      const { createServerSupabaseClient } = await import("@/lib/supabase");
-      const supabase = createServerSupabaseClient();
-
       const proofPrefix: Record<string, string> = {
         done: "work-proof",
         handed_to_courier: "courier-proof",
@@ -202,33 +200,12 @@ export async function updateTicketStatusAction(formData: FormData) {
       const prefix = proofPrefix[newStatus] ?? "attachment";
 
       const uploadOps = validFiles.map(async (file) => {
-        const mimeToExt: Record<string, string> = {
-          "image/webp": "webp",
-          "image/jpeg": "jpg",
-          "image/png": "png",
-          "image/gif": "gif",
-          "video/webm": "webm",
-          "video/mp4": "mp4",
-          "video/quicktime": "mov",
-          "application/pdf": "pdf",
-        };
-        const ext = mimeToExt[file.type] || file.name.split(".").pop()?.toLowerCase() || "bin";
+        const ext = getExt(file.type, file.name);
         const baseName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase().slice(0, 40);
-        const path = `${ticketId}/${prefix}_${ticket.ticket_code}_${baseName}.${ext}`;
+        const path = `tickets/${ticketId}/${prefix}_${ticket.ticket_code}_${baseName}.${ext}`;
 
-        const { data, error } = await supabase.storage
-          .from("attachments")
-          .upload(path, file, { contentType: file.type });
-
-        if (error) {
-          throw new Error(`Upload failed for ${file.name}`);
-        }
-
-        const { data: { publicUrl } } = supabase.storage.from("attachments").getPublicUrl(data.path);
-
-        let fileType: "image" | "video" | "pdf" = "pdf";
-        if (file.type.startsWith("image/")) fileType = "image";
-        if (file.type.startsWith("video/")) fileType = "video";
+        const publicUrl = await uploadToR2(file, path);
+        const fileType = getFileType(file.type);
 
         return { publicUrl, fileType };
       });

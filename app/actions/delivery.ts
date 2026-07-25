@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
 import { adminUpdateTicketStatusAction } from "./admin";
+import { uploadToR2, getExt } from "@/lib/r2";
 
 export async function uploadDeliveryProofAction(formData: FormData) {
   const session = await requireRole("Sales", "Administrator");
@@ -27,29 +28,10 @@ export async function uploadDeliveryProofAction(formData: FormData) {
   }
 
   try {
-    const { createServerSupabaseClient } = await import("@/lib/supabase");
-    const supabase = createServerSupabaseClient();
-    
-    // Derive extension from MIME type (handles compressed camera files)
-    const mimeToExt: Record<string, string> = {
-      "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png",
-      "image/gif": "gif", "video/webm": "webm", "video/mp4": "mp4",
-      "video/quicktime": "mov", "application/pdf": "pdf",
-    };
-    const ext = mimeToExt[file.type] || file.name.split(".").pop()?.toLowerCase() || "bin";
-    const path = `${ticketId}/${proofType}_proof-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const ext = getExt(file.type, file.name);
+    const path = `tickets/${ticketId}/${proofType}_proof-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    const { data, error } = await supabase.storage
-      .from("attachments")
-      .upload(path, file, { contentType: file.type });
-
-    if (error) {
-      return { error: `Failed to upload file: ${error.message}` };
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("attachments").getPublicUrl(data.path);
+    const publicUrl = await uploadToR2(file, path);
 
     // Update ticket URL fields
     if (proofType === "payment") {

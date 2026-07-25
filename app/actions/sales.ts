@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/session";
+import { uploadToR2, getExt, getFileType } from "@/lib/r2";
 
 /** Sanitize a filename: strip extension, replace unsafe chars with dash */
 function sanitizeName(name: string): string {
@@ -37,32 +38,14 @@ export async function uploadFirstBuildAction(formData: FormData) {
     return { error: "Unauthorized. You are not assigned to this ticket" };
 
   try {
-    const { createServerSupabaseClient } = await import("@/lib/supabase");
-    const supabase = createServerSupabaseClient();
-
-    // Derive extension from MIME type (handles compressed camera files)
-    const mimeToExt: Record<string, string> = {
-      "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png",
-      "image/gif": "gif", "video/webm": "webm", "video/mp4": "mp4",
-      "video/quicktime": "mov", "application/pdf": "pdf",
-    };
-    const ext = mimeToExt[file.type] || file.name.split(".").pop()?.toLowerCase() || "bin";
+    const ext = getExt(file.type, file.name);
     const baseName = sanitizeName(file.name);
     // e.g. first-build_HNS-NGW-001_layout.webp
     const fileName = `first-build_${ticket.ticket_code}_${baseName}.${ext}`;
-    const path = `${ticketId}/${fileName}`;
+    const path = `tickets/${ticketId}/${fileName}`;
 
-    const { data, error } = await supabase.storage
-      .from("attachments")
-      .upload(path, file, { contentType: file.type, upsert: true });
-
-    if (error) return { error: `Upload failed: ${error.message}` };
-
-    const { data: { publicUrl } } = supabase.storage.from("attachments").getPublicUrl(data.path);
-
-    let fileType: "image" | "video" | "pdf" = "pdf";
-    if (file.type.startsWith("image/")) fileType = "image";
-    if (file.type.startsWith("video/")) fileType = "video";
+    const publicUrl = await uploadToR2(file, path);
+    const fileType = getFileType(file.type);
 
     await Promise.all([
       // Keep in attachments for history
@@ -124,9 +107,6 @@ export async function uploadRevisionBuildAction(formData: FormData) {
   }
 
   try {
-    const { createServerSupabaseClient } = await import("@/lib/supabase");
-    const supabase = createServerSupabaseClient();
-
     // Count existing revisions so we can increment the number
     const existingRevisionCount = await db.ticketStatusLog.count({
       where: {
@@ -136,29 +116,14 @@ export async function uploadRevisionBuildAction(formData: FormData) {
     });
     const revisionNumber = existingRevisionCount + 1;
 
-    // Derive extension from MIME type (handles compressed camera files)
-    const mimeToExt: Record<string, string> = {
-      "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png",
-      "image/gif": "gif", "video/webm": "webm", "video/mp4": "mp4",
-      "video/quicktime": "mov", "application/pdf": "pdf",
-    };
-    const ext = mimeToExt[file.type] || file.name.split(".").pop()?.toLowerCase() || "bin";
+    const ext = getExt(file.type, file.name);
     const baseName = sanitizeName(file.name);
     // e.g. revision-2_HNS-NGW-001_updated-layout.webp
     const fileName = `revision-${revisionNumber}_${ticket.ticket_code}_${baseName}.${ext}`;
-    const path = `${ticketId}/${fileName}`;
+    const path = `tickets/${ticketId}/${fileName}`;
 
-    const { data, error } = await supabase.storage
-      .from("attachments")
-      .upload(path, file, { contentType: file.type });
-
-    if (error) return { error: `Upload failed: ${error.message}` };
-
-    const { data: { publicUrl } } = supabase.storage.from("attachments").getPublicUrl(data.path);
-
-    let fileType: "image" | "video" | "pdf" = "pdf";
-    if (file.type.startsWith("image/")) fileType = "image";
-    if (file.type.startsWith("video/")) fileType = "video";
+    const publicUrl = await uploadToR2(file, path);
+    const fileType = getFileType(file.type);
 
     await Promise.all([
       // Keep in attachments for full revision history

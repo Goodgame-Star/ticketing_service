@@ -25,10 +25,12 @@ export default function TicketChat({
   const [messages, setMessages] = useState(initial);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const send = async () => {
@@ -54,7 +56,7 @@ export default function TicketChat({
       <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border-light)" }}>
         <h3>Messages</h3>
       </div>
-      <div className="chat-messages" style={{ height: "320px" }}>
+      <div ref={chatContainerRef} className="chat-messages" style={{ height: "320px", overflowY: "auto" }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem", fontSize: "0.9rem" }}>
             No messages yet. Start a conversation with your technician.
@@ -74,7 +76,7 @@ export default function TicketChat({
             </div>
           ))
         )}
-        <div ref={bottomRef} />
+
       </div>
       <div className="chat-input-area">
         <input
