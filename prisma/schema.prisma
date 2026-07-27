@@ -100,6 +100,9 @@ enum NotificationType {
 enum CleaningPackage {
   Deep_Clean
   Repaste
+  Basic_Cleaning
+  Full_Repaste
+  Full_Repaste_CPU_GPU
 }
 
 // ─────────────────────────────────────────────

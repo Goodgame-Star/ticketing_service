@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createTicketAction } from "@/app/actions/tickets";
-import { AlertCircle, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Check, Laptop, Monitor, Printer, Settings, Cpu, HardDrive } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import FileUpload from "@/components/ui/FileUpload";
@@ -15,14 +15,14 @@ type Props = {
   defaultStoreLocationId?: string;
 };
 
-const STEPS = ["Store & Assign", "Customer", "Category", "Details", "Confirm"];
+const STEPS = ["Intake & Assign", "Choose Device", "Service Details", "Confirm"];
 
-const TICKET_TYPES = [
-  { value: "service", label: "Service Request", desc: "Device repair or troubleshooting" },
-  { value: "warranty_claim", label: "Warranty Claim", desc: "Claim under purchase warranty" },
-  { value: "cleaning", label: "Cleaning Service", desc: "Deep clean or thermal paste" },
-  { value: "upgrade", label: "Hardware Upgrade", desc: "RAM, storage, or components" },
-  { value: "pc_build", label: "PC Build", desc: "Custom PC assembly" },
+const DEVICES = [
+  { id: "Laptop", icon: Laptop, label: "Laptop" },
+  { id: "Computer", icon: Monitor, label: "Computer" },
+  { id: "Printer", icon: Printer, label: "Printer" },
+  { id: "Others", icon: Settings, label: "Others" },
+  { id: "Build PC", icon: Cpu, label: "Build PC" },
 ];
 
 export default function CreateTicketForm({ storeLocations, technicians, sales, upgrades, defaultStoreLocationId }: Props) {
@@ -30,75 +30,71 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Step 1: Store & Assignment
+  // Step 1: Intake & Assign
   const [storeLocationId, setStoreLocationId] = useState(defaultStoreLocationId || "");
   const [technicianId, setTechnicianId] = useState("");
   const [salesId, setSalesId] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phoneFocused, setPhoneFocused] = useState(false);
 
-  // Step 2: Customer Info
-  const [customerType, setCustomerType]       = useState("User");
-  const [customerName, setCustomerName]       = useState("");
-  const [customerEmail, setCustomerEmail]     = useState("");
-  const [phone, setPhone]                     = useState("");
-  const [phoneFocused, setPhoneFocused]       = useState(false);
-  const [customerAddress, setCustomerAddress] = useState("");
+  // Step 2: Choose Device
+  const [gridDevice, setGridDevice] = useState("");
 
-  // Step 3: Category
-  const [ticketType, setTicketType] = useState("");
-  const [deviceType, setDeviceType] = useState("");
-  const [deviceName, setDeviceName] = useState("");
+  // Step 3: Service Details (Case)
+  const [ticketType, setTicketType] = useState(""); // service, cleaning, upgrade, pc_build, warranty_claim
+  const [deviceType, setDeviceType] = useState(""); // actual Prisma enum: Laptop_Office, PC_Office, etc.
+  const [deviceName, setDeviceName] = useState(""); // "Device Type (Optional)" in user terms
   const [deviceSn, setDeviceSn] = useState("");
-  const [conditions, setConditions] = useState<string[]>([]); // multiple checkboxes
-  const [pickupMethod, setPickupMethod] = useState("self_pickup");
-
-  // Step 4: Details
-  const [accessories, setAccessories] = useState("");
+  const [conditions, setConditions] = useState<string[]>([]); // Garansi Aktif, Garansi Habis, Segel Utuh, Fisik Mulus
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [customAccessory, setCustomAccessory] = useState("");
   const [notes, setNotes] = useState("");
-  const [isOvernight, setIsOvernight] = useState(false);
-  
-  // Dynamic details based on ticketType
-  const [purchaseDate, setPurchaseDate] = useState("");
-  const [cleaningPackage, setCleaningPackage] = useState("");
+  const [checkDiagnosisFee, setCheckDiagnosisFee] = useState(true); // Default true for Service
+  const [cleaningPackage, setCleaningPackage] = useState(""); // Basic_Cleaning, Full_Repaste, Full_Repaste_CPU_GPU
   const [selectedUpgrades, setSelectedUpgrades] = useState<string[]>([]);
-  const [components, setComponents] = useState<string[]>([]);
-  const [newComponent, setNewComponent] = useState("");
-
-  // Attachments
   const [ticketFiles, setTicketFiles] = useState<File[]>([]);
-  const [progressFiles, setProgressFiles] = useState<File[]>([]);
+  
+  // Keep overnight/pickup in case needed later, or default
+  const [pickupMethod, setPickupMethod] = useState("self_pickup");
+  const [isOvernight, setIsOvernight] = useState(false);
 
-  // Step 5: Confirm
+  // Step 4: Confirm
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const getAvailableCases = () => {
+    if (gridDevice === "Laptop" || gridDevice === "Computer") return ["service", "cleaning", "upgrade"];
+    if (gridDevice === "Printer" || gridDevice === "Others") return ["service", "cleaning"];
+    if (gridDevice === "Build PC") return ["pc_build"];
+    return [];
+  };
 
   const validateStep = () => {
     const errs: Record<string, string> = {};
     if (step === 1) {
       if (!storeLocationId) errs.storeLocationId = "Please select a store location.";
+      if (!customerName.trim()) errs.customerName = "Customer name is required.";
+      if (!phone.match(/^\d{9,13}$/)) errs.phone = "Enter valid phone number digits (9-13 digits).";
+      if (customerEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        errs.customerEmail = "Please enter a valid email address.";
+      }
     }
     if (step === 2) {
-      if (!customerName.trim()) errs.customerName = "Customer name is required.";
-      if (customerEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail))
-        errs.customerEmail = "Please enter a valid email address.";
-      if (!phone.match(/^\d{9,13}$/)) errs.phone = "Enter valid phone number digits (9-13 digits).";
+      if (!gridDevice) errs.gridDevice = "Please select a device.";
     }
     if (step === 3) {
-      if (!ticketType) errs.ticketType = "Ticket type is required.";
-      if (!deviceType) errs.deviceType = "Device type is required.";
+      if (!ticketType) errs.ticketType = "Please select a case (Service, Cleaning, etc.).";
+      if (ticketType === "service" || ticketType === "cleaning") {
+        if (!deviceType) errs.deviceType = "Device category specification is required.";
+      }
+      if (ticketType === "service" && !notes.trim()) errs.notes = "Problem description is required.";
+      if (ticketType === "cleaning" && !cleaningPackage) errs.cleaningPackage = "Cleaning package is required.";
+      if (ticketType === "upgrade" && selectedUpgrades.length === 0) errs.selectedUpgrades = "Please select at least one upgrade.";
     }
     if (step === 4) {
-      if (ticketType === "service" || ticketType === "warranty_claim") {
-        if (!notes.trim()) errs.notes = "Problem description is required.";
-      }
-      if (ticketType === "warranty_claim" && !purchaseDate) errs.purchaseDate = "Purchase date is required.";
-      if (ticketType === "cleaning" && !cleaningPackage) errs.cleaningPackage = "Please select a cleaning package.";
-      if (ticketType === "upgrade" && selectedUpgrades.length === 0) errs.selectedUpgrades = "Please select at least one upgrade.";
-      if (ticketType === "pc_build" && ticketFiles.length === 0) errs.ticketFiles = "First Build Attachment is required.";
-    }
-    if (step === 5) {
       if (!termsAccepted) errs.termsAccepted = "You must confirm the details.";
     }
     setErrors(errs);
@@ -117,40 +113,46 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
       if (technicianId) fd.append("technician_id", technicianId);
       if (salesId) fd.append("sales_id", salesId);
 
-      fd.append("customer_type", customerType);
+      fd.append("customer_type", "User"); // Fixed as per new rules
       fd.append("customer_name", customerName);
-      fd.append("customer_email", customerEmail);
+      if (customerEmail) fd.append("customer_email", customerEmail);
       fd.append("phone", `+62${phone}`);
-      if (customerAddress) fd.append("customer_address", customerAddress);
 
       fd.append("ticket_type", ticketType);
-      fd.append("device_type", deviceType);
+      
+      // If they didn't explicitly pick a device_type enum, map it based on grid
+      let finalDeviceType = deviceType;
+      if (!finalDeviceType) {
+        if (gridDevice === "Laptop") finalDeviceType = "Laptop_Office";
+        else if (gridDevice === "Computer" || gridDevice === "Build PC") finalDeviceType = "PC_Office";
+        else if (gridDevice === "Printer") finalDeviceType = "Printer";
+        else finalDeviceType = "Other_Device";
+      }
+      fd.append("device_type", finalDeviceType);
+      
       fd.append("pickup_method", pickupMethod);
       if (deviceName) fd.append("device_name", deviceName);
       if (deviceSn) fd.append("device_sn", deviceSn);
-      if (conditions.length > 0) fd.append("warranty_status", conditions.join(", "));
+      if (conditions.length > 0) fd.append("device_condition", conditions.join(", ")); // Saved to new field
 
       let accList = [...selectedAccessories];
       if (customAccessory.trim()) accList.push(customAccessory.trim());
-      const finalAccessories = ticketType === "cleaning" ? accList.join(", ") : accessories;
-      if (finalAccessories) fd.append("accessories", finalAccessories);
+      if (accList.length > 0) fd.append("accessories", accList.join(", "));
 
       if (notes) fd.append("notes", notes);
-      if (isOvernight) fd.append("is_overnight_check", "1");
+      
+      // Auto diagnosis fee for service
+      if (ticketType === "service" && checkDiagnosisFee) {
+        fd.append("is_overnight_check", "1"); // Triggers the checking_fee in backend
+      }
 
-      if (ticketType === "warranty_claim" && purchaseDate) fd.append("purchase_date", purchaseDate);
       if (ticketType === "cleaning" && cleaningPackage) fd.append("service_package", cleaningPackage);
       if (ticketType === "upgrade") {
         selectedUpgrades.forEach(id => fd.append("upgrade_ids", id));
       }
-      if (ticketType === "pc_build") {
-        fd.append("components", JSON.stringify(components));
-      }
       
       ticketFiles.forEach(f => fd.append("ticket_files", f));
-      progressFiles.forEach(f => fd.append("progress_files", f));
-      
-      fd.append("is_for_self", "0"); // Technicians always make tickets on behalf of customers
+      fd.append("is_for_self", "0");
 
       try {
         const result = await createTicketAction(fd) as any;
@@ -163,27 +165,11 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
         }
       } catch (err: any) {
         console.error("Action error:", err);
-        if (err.message?.includes("Unexpected end of form") || err.message?.includes("Body exceeded")) {
-          toast.error("Upload failed: File size is too large. Please limit to 10MB.");
-          setErrors({ submit: "File size is too large. Please limit to 10MB." });
-        } else {
-          const errMsg = err.message ? `Error: ${err.message}` : "An unexpected error occurred.";
-          toast.error(errMsg + " (Please try again)");
-          setErrors({ submit: errMsg });
-        }
+        const errMsg = err.message ? `Error: ${err.message}` : "An unexpected error occurred.";
+        toast.error(errMsg + " (Please try again)");
+        setErrors({ submit: errMsg });
       }
     });
-  };
-
-  const addComponent = () => {
-    if (newComponent.trim()) {
-      setComponents([...components, newComponent.trim()]);
-      setNewComponent("");
-    }
-  };
-
-  const toggleUpgrade = (id: string) => {
-    setSelectedUpgrades(prev => prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]);
   };
 
   const toggleCondition = (val: string) => {
@@ -192,6 +178,10 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
 
   const toggleAccessory = (val: string) => {
     setSelectedAccessories(prev => prev.includes(val) ? prev.filter(a => a !== val) : [...prev, val]);
+  };
+
+  const toggleUpgrade = (id: string) => {
+    setSelectedUpgrades(prev => prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]);
   };
 
   return (
@@ -232,406 +222,336 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
           </div>
         )}
 
-        {/* Step 1: Store & Assignment */}
+        {/* Step 1: Intake & Assign */}
         {step === 1 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Store & Assignment</h2>
-            <div className="form-group">
-              <label className="form-label">Store Location *</label>
-              <select className={`form-input ${errors.storeLocationId ? "error" : ""}`} value={storeLocationId} onChange={e => setStoreLocationId(e.target.value)}>
-                <option value="">Select Store</option>
-                {storeLocations.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-              </select>
-              {errors.storeLocationId && <span className="form-error"><AlertCircle size={12} />{errors.storeLocationId}</span>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Assign Technician</label>
-              <select className="form-input" value={technicianId} onChange={e => setTechnicianId(e.target.value)}>
-                <option value="">(Assign Later)</option>
-                {technicians
-                  .filter(t => !storeLocationId || t.store_assignments.some(sa => sa.store_id === storeLocationId))
-                  .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Assign Sales</label>
-              <select className="form-input" value={salesId} onChange={e => setSalesId(e.target.value)}>
-                <option value="">(Assign Later)</option>
-                {sales.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Customer Info */}
-        {step === 2 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Customer Information</h2>
-            <div className="form-group">
-              <label className="form-label">Customer Type</label>
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                {["User", "Internet_Cafe", "Company", "Dealer"].map(t => (
-                  <label key={t} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
-                    <input type="radio" checked={customerType === t} onChange={() => setCustomerType(t)} />
-                    {t.replace("_", " ")}
-                  </label>
-                ))}
+            <h2 style={{ marginBottom: "0.5rem" }}>Intake & Assignment</h2>
+            
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Store Location *</label>
+                <select className={`form-input ${errors.storeLocationId ? "error" : ""}`} value={storeLocationId} onChange={e => setStoreLocationId(e.target.value)}>
+                  <option value="">Select Store</option>
+                  {storeLocations.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                </select>
+                {errors.storeLocationId && <span className="form-error"><AlertCircle size={12} />{errors.storeLocationId}</span>}
               </div>
             </div>
+
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Assign Technician</label>
+                <select className="form-input" value={technicianId} onChange={e => setTechnicianId(e.target.value)}>
+                  <option value="">(Assign Later)</option>
+                  {technicians
+                    .filter(t => !storeLocationId || t.store_assignments.some(sa => sa.store_id === storeLocationId))
+                    .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Assign Sales</label>
+                <select className="form-input" value={salesId} onChange={e => setSalesId(e.target.value)}>
+                  <option value="">(Assign Later)</option>
+                  {sales.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <hr style={{ margin: "1rem 0", borderColor: "var(--border)" }} />
+
+            <h3 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Customer Information</h3>
+            
             <div className="form-group">
               <label className="form-label">Customer Name *</label>
               <input className={`form-input ${errors.customerName ? "error" : ""}`} value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="John Doe" />
               {errors.customerName && <span className="form-error"><AlertCircle size={12} />{errors.customerName}</span>}
             </div>
-            <div className="form-group">
-              <label className="form-label">Customer Email <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(optional)</span></label>
-              <input
-                type="email"
-                className={`form-input ${errors.customerEmail ? "error" : ""}`}
-                value={customerEmail}
-                onChange={e => setCustomerEmail(e.target.value)}
-                placeholder="customer@email.com"
-              />
-              {errors.customerEmail && <span className="form-error"><AlertCircle size={12} />{errors.customerEmail}</span>}
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
-                If provided, progress updates will be sent automatically to this email.
-              </span>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Nomor HP / WhatsApp *</label>
-              <div style={{ display: "flex", alignItems: "center", gap: "0" }}>
-                <span style={{ padding: "0.625rem 0.75rem", background: "var(--cream-dark)", border: "1.5px solid var(--border)", borderRight: "none", borderRadius: "var(--radius-md) 0 0 var(--radius-md)", fontSize: "0.9375rem", color: "var(--text-secondary)", fontWeight: 600, flexShrink: 0, lineHeight: "1.5" }}>+62</span>
+
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Nomor HP / WhatsApp *</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "0" }}>
+                  <span style={{ padding: "0.625rem 0.75rem", background: "var(--cream-dark)", border: "1.5px solid var(--border)", borderRight: "none", borderRadius: "var(--radius-md) 0 0 var(--radius-md)", fontSize: "0.9375rem", color: "var(--text-secondary)", fontWeight: 600, flexShrink: 0, lineHeight: "1.5" }}>+62</span>
+                  <input
+                    className={`form-input ${errors.phone ? "error" : ""}`}
+                    style={{ borderLeft: "none", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                    value={phone}
+                    onFocus={() => setPhoneFocused(true)}
+                    onBlur={() => setPhoneFocused(false)}
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, "");
+                      if (val.startsWith("62")) val = val.substring(2);
+                      else if (val.startsWith("0")) val = val.substring(1);
+                      setPhone(val);
+                    }}
+                    placeholder="8123456789"
+                  />
+                </div>
+                {phoneFocused && !phone.match(/^\d{9,13}$/) && (
+                  <span style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: "0.25rem", display: "block" }}>
+                    Masukkan 9-13 digit angka.
+                  </span>
+                )}
+                {errors.phone && <span className="form-error"><AlertCircle size={12} />{errors.phone}</span>}
+              </div>
+
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Customer Email <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
                 <input
-                  className={`form-input ${errors.phone ? "error" : ""}`}
-                  style={{ borderLeft: "none", borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-                  value={phone}
-                  onFocus={() => setPhoneFocused(true)}
-                  onBlur={() => setPhoneFocused(false)}
-                  onChange={e => {
-                    let val = e.target.value.replace(/\D/g, "");
-                    if (val.startsWith("62")) val = val.substring(2);
-                    else if (val.startsWith("0")) val = val.substring(1);
-                    setPhone(val);
-                  }}
-                  placeholder="8123456789"
+                  type="email"
+                  className={`form-input ${errors.customerEmail ? "error" : ""}`}
+                  value={customerEmail}
+                  onChange={e => setCustomerEmail(e.target.value)}
+                  placeholder="customer@email.com"
                 />
+                {errors.customerEmail && <span className="form-error"><AlertCircle size={12} />{errors.customerEmail}</span>}
               </div>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
-                Tidak perlu mengetik 0 atau 62 di depan.
-              </span>
-              {phoneFocused && !phone.match(/^\d{9,13}$/) && (
-                <span style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: "0.25rem", display: "block" }}>
-                  Masukkan digit nomor yang valid (9-13 digit).
-                </span>
-              )}
-              {errors.phone && <span className="form-error"><AlertCircle size={12} />{errors.phone}</span>}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Customer Address</label>
-              <textarea 
-                className="form-input" 
-                value={customerAddress} 
-                onChange={e => setCustomerAddress(e.target.value)} 
-                placeholder="Full address for delivery or pickup..."
-                rows={3}
-              />
             </div>
           </div>
         )}
 
-        {/* Step 3: Category */}
-        {step === 3 && (
+        {/* Step 2: Choose Device Grid */}
+        {step === 2 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Device & Category</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-              <div>
-                <p className="form-label" style={{ marginBottom: "0.75rem" }}>Ticket Type *</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {TICKET_TYPES.map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => {
-                        setTicketType(t.value);
-                        // Auto-reset courier to self_pickup if switching away from pc_build
-                        if (t.value !== "pc_build" && pickupMethod === "courier") {
-                          setPickupMethod("self_pickup");
-                        }
-                      }}
-                      style={{
-                        padding: "0.875rem 1rem",
-                        border: `2px solid ${ticketType === t.value ? "var(--primary)" : "var(--border)"}`,
-                        borderRadius: "var(--radius-md)",
-                        background: ticketType === t.value ? "rgba(22,70,157,0.06)" : "var(--white)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "all 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
-                      }}
-                    >
-                      <div style={{
-                        width: "1.25rem", height: "1.25rem", borderRadius: "50%",
-                        border: `2px solid ${ticketType === t.value ? "var(--primary)" : "var(--border)"}`,
-                        background: ticketType === t.value ? "var(--primary)" : "transparent",
-                        flexShrink: 0,
-                      }} />
-                      <div>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{t.label}</div>
-                        <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>{t.desc}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                {errors.ticketType && <span className="form-error" style={{ marginTop: "0.5rem" }}><AlertCircle size={12} />{errors.ticketType}</span>}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Device Type *</label>
-                <select className={`form-input ${errors.deviceType ? "error" : ""}`} value={deviceType} onChange={e => setDeviceType(e.target.value)}>
-                  <option value="">Select Device</option>
-                  <option value="PC_Office">PC Office</option>
-                  <option value="PC_Gaming">PC Gaming</option>
-                  <option value="Laptop_Office">Laptop Office</option>
-                  <option value="Laptop_Gaming">Laptop Gaming</option>
-                  <option value="Printer">Printer</option>
-                  <option value="Other_Device">Other Device</option>
-                </select>
-                {errors.deviceType && <span className="form-error"><AlertCircle size={12} />{errors.deviceType}</span>}
-              </div>
-
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">Nama Perangkat (Device Name) <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
-                  <input 
-                    className="form-input" 
-                    value={deviceName} 
-                    onChange={e => setDeviceName(e.target.value)} 
-                    placeholder="Misal: ASUS ROG G15" 
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">Serial Number (SN) <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
-                  <input 
-                    className="form-input" 
-                    value={deviceSn} 
-                    onChange={e => setDeviceSn(e.target.value)} 
-                    placeholder="Misal: 12345ABCD" 
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Kondisi Perangkat (Condition) <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginTop: "0.5rem" }}>
-                  {["Garansi Aktif", "Garansi Habis", "Segel Utuh", "Fisik Mulus"].map(cond => (
-                    <label key={cond} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem" }}>
-                      <input 
-                        type="checkbox" 
-                        checked={conditions.includes(cond)} 
-                        onChange={() => toggleCondition(cond)} 
-                        style={{ width: "1.1rem", height: "1.1rem" }}
-                      />
-                      {cond}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="form-group" style={{ marginTop: "1rem" }}>
-              <label className="form-label">Pickup Method *</label>
-              <select
-                className="form-input"
-                value={pickupMethod}
-                onChange={e => {
-                  // Only allow courier for pc_build
-                  if (e.target.value === "courier" && ticketType !== "pc_build") return;
-                  setPickupMethod(e.target.value);
-                }}
-              >
-                <option value="self_pickup">Self Pickup</option>
-                <option
-                  value="courier"
-                  disabled={ticketType !== "pc_build"}
-                  title={ticketType !== "pc_build" ? "Courier is only available for PC Build tickets" : ""}
+            <h2 style={{ marginBottom: "0.5rem", textAlign: "center" }}>Choose Device</h2>
+            {errors.gridDevice && <div className="form-error" style={{ textAlign: "center", marginBottom: "1rem" }}><AlertCircle size={12} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }}/>{errors.gridDevice}</div>}
+            
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", 
+              gap: "1.25rem",
+              marginTop: "0.5rem" 
+            }}>
+              {DEVICES.map(d => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => {
+                    setGridDevice(d.id);
+                    setTicketType(""); // Reset case when device changes
+                  }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "1rem",
+                    padding: "2rem 1rem",
+                    borderRadius: "16px",
+                    border: `2px solid ${gridDevice === d.id ? "var(--primary)" : "var(--border)"}`,
+                    background: gridDevice === d.id ? "rgba(22,70,157,0.06)" : "var(--white)",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    color: gridDevice === d.id ? "var(--primary)" : "var(--text-secondary)",
+                  }}
                 >
-                  Courier / Delivery {ticketType !== "pc_build" ? "(PC Build only)" : ""}
-                </option>
-              </select>
-              {ticketType !== "pc_build" && pickupMethod === "courier" && (
-                <span style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: "0.25rem", display: "block" }}>
-                  ⚠️ Courier option has been reset — only available for PC Build tickets.
-                </span>
-              )}
+                  <d.icon size={48} strokeWidth={1.5} />
+                  <span style={{ fontWeight: 600, fontSize: "1.05rem" }}>{d.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Step 4: Details */}
-        {step === 4 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Details & Notes</h2>
+        {/* Step 3: Service Details */}
+        {step === 3 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <h2 style={{ marginBottom: "0" }}>Service Details: {gridDevice}</h2>
+            
+            {/* Case Selection Tabs */}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
+              {getAvailableCases().map(caseType => {
+                const labels: Record<string, string> = { service: "Service", cleaning: "Cleaning", upgrade: "Upgrade Part", pc_build: "Build PC", warranty_claim: "Claim" };
+                return (
+                  <button
+                    key={caseType}
+                    type="button"
+                    onClick={() => setTicketType(caseType)}
+                    className={ticketType === caseType ? "btn btn-primary" : "btn btn-outline"}
+                    style={{ borderRadius: "20px", padding: "0.4rem 1.25rem" }}
+                  >
+                    {labels[caseType]}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.ticketType && <span className="form-error" style={{ marginTop: "-1rem" }}><AlertCircle size={12} />{errors.ticketType}</span>}
 
-            {/* Common for specific types */}
-            {(ticketType === "service" || ticketType === "warranty_claim") && (
-              <div className="form-group">
-                <label className="form-label">Problem Description / Notes *</label>
-                <textarea className={`form-input ${errors.notes ? "error" : ""}`} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Provide details of the problem..." />
-                {errors.notes && <span className="form-error"><AlertCircle size={12} />{errors.notes}</span>}
+            {/* If Build PC or Claim (TBA) */}
+            {(ticketType === "pc_build" || ticketType === "warranty_claim") && (
+              <div style={{ textAlign: "center", padding: "3rem 1rem", background: "var(--cream)", borderRadius: "12px", color: "var(--text-muted)" }}>
+                <Cpu size={48} style={{ margin: "0 auto 1rem", opacity: 0.5 }} />
+                <h3>Coming Soon</h3>
+                <p>This flow is currently being updated. Check back later!</p>
               </div>
             )}
 
-            {/* Dynamic Fields */}
-            {ticketType === "warranty_claim" && (
-              <div className="form-group">
-                <label className="form-label">Purchase Date *</label>
-                <input type="date" className={`form-input ${errors.purchaseDate ? "error" : ""}`} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
-                {errors.purchaseDate && <span className="form-error"><AlertCircle size={12} />{errors.purchaseDate}</span>}
-              </div>
-            )}
+            {/* Service & Cleaning Shared Fields */}
+            {(ticketType === "service" || ticketType === "cleaning") && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                
+                {ticketType === "cleaning" && (
+                  <div className="form-group" style={{ background: "var(--cream-dark)", padding: "1rem", borderRadius: "8px" }}>
+                    <label className="form-label">Cleaning Package *</label>
+                    <select className={`form-input ${errors.cleaningPackage ? "error" : ""}`} value={cleaningPackage} onChange={e => setCleaningPackage(e.target.value)}>
+                      <option value="">Pilih Paket Cleaning</option>
+                      <option value="Basic_Cleaning">Basic Cleaning</option>
+                      {(gridDevice === "Laptop" || gridDevice === "Computer") && (
+                        <option value="Full_Repaste">Full Cleaning + Repaste</option>
+                      )}
+                      {gridDevice === "Computer" && (
+                        <option value="Full_Repaste_CPU_GPU">Full Cleaning + Repaste CPU & GPU</option>
+                      )}
+                    </select>
+                    {errors.cleaningPackage && <span className="form-error"><AlertCircle size={12} />{errors.cleaningPackage}</span>}
+                  </div>
+                )}
 
-            {ticketType === "cleaning" && (
-              <>
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px" }}>
+                    <label className="form-label">Device Type *</label>
+                    <select className={`form-input ${errors.deviceType ? "error" : ""}`} value={deviceType} onChange={e => setDeviceType(e.target.value)}>
+                      <option value="">Pilih Kategori Spesifik</option>
+                      {gridDevice === "Laptop" && (
+                        <>
+                          <option value="Laptop_Office">Laptop Office</option>
+                          <option value="Laptop_Gaming">Laptop Gaming</option>
+                        </>
+                      )}
+                      {gridDevice === "Computer" && (
+                        <>
+                          <option value="PC_Office">PC Office</option>
+                          <option value="PC_Gaming">PC Gaming</option>
+                        </>
+                      )}
+                      {gridDevice === "Printer" && <option value="Printer">Printer</option>}
+                      {gridDevice === "Others" && <option value="Other_Device">Other Device</option>}
+                    </select>
+                    {errors.deviceType && <span className="form-error"><AlertCircle size={12} />{errors.deviceType}</span>}
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px" }}>
+                    <label className="form-label">Device Type (Nama) <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(opsional)</span></label>
+                    <input className="form-input" value={deviceName} onChange={e => setDeviceName(e.target.value)} placeholder="Misal: ASUS ROG G15" />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+                    <label className="form-label">SN <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(opsional)</span></label>
+                    <input className="form-input" value={deviceSn} onChange={e => setDeviceSn(e.target.value)} placeholder="Misal: 12345ABCD" />
+                  </div>
+                </div>
+
                 <div className="form-group">
-                  <label className="form-label">Kelengkapan (Accessories) <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+                  <label className="form-label">Kondisi Perangkat <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(opsional)</span></label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", marginTop: "0.25rem" }}>
+                    {["Garansi Aktif", "Garansi Habis", "Segel Utuh", "Fisik Mulus"].map(cond => (
+                      <label key={cond} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.95rem" }}>
+                        <input type="checkbox" checked={conditions.includes(cond)} onChange={() => toggleCondition(cond)} style={{ width: "1.1rem", height: "1.1rem" }} />
+                        {cond}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Kelengkapan Accessories</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", marginTop: "0.25rem", marginBottom: "0.75rem" }}>
                     {["Charger", "Kabel", "Bag"].map(acc => (
-                      <label key={acc} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem" }}>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedAccessories.includes(acc)} 
-                          onChange={() => toggleAccessory(acc)} 
-                          style={{ width: "1.1rem", height: "1.1rem" }}
-                        />
+                      <label key={acc} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.95rem" }}>
+                        <input type="checkbox" checked={selectedAccessories.includes(acc)} onChange={() => toggleAccessory(acc)} style={{ width: "1.1rem", height: "1.1rem" }} />
                         {acc}
                       </label>
                     ))}
                   </div>
                   <input className="form-input" value={customAccessory} onChange={e => setCustomAccessory(e.target.value)} placeholder="Kelengkapan lain (custom)..." />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Paket Servis (Cleaning Package) *</label>
-                  <select className={`form-input ${errors.cleaningPackage ? "error" : ""}`} value={cleaningPackage} onChange={e => setCleaningPackage(e.target.value)}>
-                    <option value="">Pilih Paket Servis</option>
-                    <option value="Deep_Clean">Deep Clean</option>
-                    <option value="Repaste">Repaste / Thermal Paste Replacement</option>
-                  </select>
-                  {errors.cleaningPackage && <span className="form-error"><AlertCircle size={12} />{errors.cleaningPackage}</span>}
-                </div>
-              </>
-            )}
 
-            {ticketType === "upgrade" && (
-              <div className="form-group">
-                <label className="form-label">Select Upgrades *</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {upgrades.map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => toggleUpgrade(u.id)}
-                      style={{
-                        padding: "0.4rem 0.8rem",
-                        borderRadius: "20px",
-                        border: `1.5px solid ${selectedUpgrades.includes(u.id) ? "var(--primary)" : "var(--border)"}`,
-                        background: selectedUpgrades.includes(u.id) ? "var(--primary)" : "var(--white)",
-                        color: selectedUpgrades.includes(u.id) ? "var(--white)" : "var(--text-secondary)",
-                        fontSize: "0.85rem", cursor: "pointer", transition: "all 0.2s"
-                      }}
-                    >
-                      {u.name}
-                    </button>
-                  ))}
-                </div>
-                {errors.selectedUpgrades && <span className="form-error"><AlertCircle size={12} />{errors.selectedUpgrades}</span>}
-                
-                {selectedUpgrades.length > 0 && (
-                  <div style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--cream)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-                    <span style={{ fontWeight: 600 }}>Upgrade Services Fee</span>
-                    <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
-                      An installation fee of Rp. 50,000 applies for these upgrades.
-                    </p>
+                {ticketType === "service" && (
+                  <div className="form-group">
+                    <label className="form-label">Problem Description *</label>
+                    <textarea className={`form-input ${errors.notes ? "error" : ""}`} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Provide details of the problem..." />
+                    {errors.notes && <span className="form-error"><AlertCircle size={12} />{errors.notes}</span>}
                   </div>
                 )}
-              </div>
-            )}
 
-            {ticketType === "pc_build" && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">PC Components</label>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <input
-                      className="form-input"
-                      value={newComponent}
-                      onChange={e => setNewComponent(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addComponent(); } }}
-                      placeholder="e.g. RTX 4090, i9-14900K"
-                    />
-                    <button type="button" onClick={addComponent} className="btn btn-outline">Add</button>
+                {ticketType === "service" && (
+                  <div className="form-group" style={{ marginTop: "0.5rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", background: "var(--cream)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
+                      <input type="checkbox" checked={checkDiagnosisFee} onChange={e => setCheckDiagnosisFee(e.target.checked)} style={{ width: "1.25rem", height: "1.25rem" }} disabled />
+                      <div>
+                        <strong style={{ display: "block" }}>Check & Diagnosis</strong>
+                        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Fee of Rp. 50.000 (Automatically Applied)</span>
+                      </div>
+                    </label>
                   </div>
-                  {components.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.75rem" }}>
-                      {components.map((c, i) => (
-                        <span key={i} style={{ background: "var(--cream-dark)", padding: "0.25rem 0.75rem", borderRadius: "4px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          {c}
-                          <button type="button" onClick={() => setComponents(components.filter((_, idx) => idx !== i))} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--accent)" }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {errors.components && <span className="form-error"><AlertCircle size={12} />{errors.components}</span>}
-                </div>
-                
-                <div className="form-group" style={{ marginTop: "1rem" }}>
-                  <label className="form-label">First Build Attachment *</label>
-                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Upload proof or initial build setup (images, PDFs).</p>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Ticket Attachment</label>
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Upload photo/video of the device.</p>
                   <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={5} />
-                  {errors.ticketFiles && <span className="form-error" style={{ marginTop: "0.25rem", display: "block" }}><AlertCircle size={12} />{errors.ticketFiles}</span>}
                 </div>
-              </>
+              </div>
             )}
 
-            {ticketType === "service" && (
-              <>
-                <div className="form-group" style={{ marginTop: "1rem" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", background: "var(--cream)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
-                    <input type="checkbox" checked={isOvernight} onChange={e => setIsOvernight(e.target.checked)} style={{ width: "1.25rem", height: "1.25rem" }} />
-                    <div>
-                      <strong style={{ display: "block" }}>Device will stay overnight (Check and Diagnosis)</strong>
-                      <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Applies a checking fee of Rp. 50,000</span>
-                    </div>
-                  </label>
+            {/* Upgrade Part */}
+            {ticketType === "upgrade" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div className="form-group">
+                  <label className="form-label">Select Upgrades *</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    {upgrades
+                      .filter(u => {
+                        if (gridDevice === "Laptop") return u.name.includes("RAM") || u.name.includes("SSD");
+                        return true;
+                      })
+                      .map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => toggleUpgrade(u.id)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          borderRadius: "20px",
+                          border: `1.5px solid ${selectedUpgrades.includes(u.id) ? "var(--primary)" : "var(--border)"}`,
+                          background: selectedUpgrades.includes(u.id) ? "var(--primary)" : "var(--white)",
+                          color: selectedUpgrades.includes(u.id) ? "var(--white)" : "var(--text-secondary)",
+                          fontSize: "0.9rem", cursor: "pointer", transition: "all 0.2s"
+                        }}
+                      >
+                        {u.name}
+                      </button>
+                    ))}
+                  </div>
+                  {errors.selectedUpgrades && <span className="form-error"><AlertCircle size={12} />{errors.selectedUpgrades}</span>}
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Ticket Attachments</label>
-                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Photos or video of device condition before service (up to 6 files).</p>
-                  <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={6} />
+                  <label className="form-label">Attachment (Upgraded Item) *</label>
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Please attach a photo of the item to be upgraded.</p>
+                  <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={5} />
                 </div>
-              </>
-            )}
-
-            {ticketType === "warranty_claim" && (
-              <div className="form-group">
-                <label className="form-label">Invoice / Proof of Purchase</label>
-                <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Upload invoice or proof of purchase (up to 2 files).</p>
-                <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={2} accept="image/*,.pdf,image/heic,image/heif" />
               </div>
             )}
+
           </div>
         )}
-        {/* Step 5: Confirm */}
-        {step === 5 && (
+
+        {/* Step 4: Confirm */}
+        {step === 4 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Confirm Ticket Details</h2>
-            <div style={{ background: "var(--cream)", padding: "1.5rem", borderRadius: "12px", fontSize: "0.9rem" }}>
-              <p style={{ marginBottom: "0.5rem" }}><strong>Store:</strong> {storeLocations.find(s => s.id === storeLocationId)?.name}</p>
-              <p style={{ marginBottom: "0.5rem" }}><strong>Customer:</strong> {customerName} ({customerType}) - +62{phone}</p>
-              <p style={{ marginBottom: "0.5rem" }}><strong>Email:</strong> {customerEmail}</p>
-              <p style={{ marginBottom: "0.5rem" }}><strong>Type:</strong> {ticketType.replace(/_/g, " ")} | {deviceType.replace(/_/g, " ")}</p>
-              {notes && <p style={{ marginBottom: "0.5rem" }}><strong>Notes:</strong> {notes}</p>}
-              {accessories && <p style={{ marginBottom: "0.5rem" }}><strong>Accessories:</strong> {accessories}</p>}
+            <div style={{ background: "var(--cream)", padding: "1.5rem", borderRadius: "12px", fontSize: "0.95rem", lineHeight: "1.6" }}>
+              <p><strong>Store:</strong> {storeLocations.find(s => s.id === storeLocationId)?.name}</p>
+              <p><strong>Customer:</strong> {customerName} - +62{phone}</p>
+              <p><strong>Device:</strong> {gridDevice} ({deviceType || "N/A"})</p>
+              <p><strong>Case:</strong> <span style={{ textTransform: "capitalize" }}>{ticketType.replace(/_/g, " ")}</span></p>
+              {ticketType === "cleaning" && <p><strong>Package:</strong> {cleaningPackage.replace(/_/g, " ")}</p>}
+              {ticketType === "service" && <p><strong>Problem:</strong> {notes}</p>}
+              {conditions.length > 0 && <p><strong>Condition:</strong> {conditions.join(", ")}</p>}
+              {(selectedAccessories.length > 0 || customAccessory) && (
+                <p><strong>Accessories:</strong> {[...selectedAccessories, customAccessory].filter(Boolean).join(", ")}</p>
+              )}
             </div>
             
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", marginTop: "1rem" }}>
@@ -643,7 +563,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
         )}
 
         {/* Navigation Buttons */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.75rem", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2rem", gap: "0.75rem" }}>
           {step > 1 ? (
             <button type="button" onClick={back} className="btn btn-secondary" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }} disabled={isPending}>
               <ChevronLeft size={16} /> Back
@@ -658,7 +578,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
             <button
               type="button"
               onClick={submit}
-              disabled={isPending}
+              disabled={isPending || ticketType === "pc_build" || ticketType === "warranty_claim"}
               className="btn btn-primary"
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             >

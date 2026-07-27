@@ -6,10 +6,16 @@ import { requireRole } from "@/lib/session";
 import { sendTicketStatusEmail } from "@/lib/email";
 import { uploadToR2, getExt, getFileType } from "@/lib/r2";
 
-function getTicketPoints(type: string, deviceType?: string | null): number {
+function getTicketPoints(type: string, deviceType?: string | null, cleaningPackage?: string | null): number {
+  if (type === "service") {
+    if (deviceType === "Other_Device") return 3;
+    return 5;
+  }
+  if (type === "cleaning") {
+    if (cleaningPackage === "Full_Repaste" || cleaningPackage === "Full_Repaste_CPU_GPU") return 5;
+    return 3;
+  }
   if (type === "pc_build") return 4;
-  if (type === "service") return 5;
-  if (type === "cleaning" && deviceType === "PC_Gaming") return 4;
   return 2;
 }
 
@@ -147,7 +153,10 @@ export async function updateTicketStatusAction(formData: FormData) {
 
     const session = await requireRole("Technician");
 
-    const ticket = await db.ticket.findUnique({ where: { id: ticketId } });
+    const ticket = await db.ticket.findUnique({ 
+      where: { id: ticketId },
+      include: { cleaning_detail: true }
+    });
     if (!ticket) return { error: "Ticket not found" };
 
     if (ticket.technician_id !== session.userId) {
@@ -278,7 +287,7 @@ export async function updateTicketStatusAction(formData: FormData) {
 
     const isTerminal = ["done", "cancelled", "rejected"].includes(newStatus);
     if (isTerminal) {
-      const points = getTicketPoints(ticket.ticket_type, ticket.device_type);
+      const points = getTicketPoints(ticket.ticket_type, ticket.device_type, ticket.cleaning_detail?.service_package);
 
       revalidateTag("leaderboard-techs", "max");
       revalidateTag("leaderboard-stores", "max");
@@ -316,7 +325,7 @@ export async function updateTicketStatusAction(formData: FormData) {
     }
 
     if (newStatus === "done") {
-      const points = getTicketPoints(ticket.ticket_type, ticket.device_type);
+      const points = getTicketPoints(ticket.ticket_type, ticket.device_type, ticket.cleaning_detail?.service_package);
       revalidateTag(`user-profile:${session.userId}`, "max");
       const perf = await db.technicianPerformance.findUnique({
         where: { technician_id: session.userId },
