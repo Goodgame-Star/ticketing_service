@@ -110,7 +110,12 @@ export default function StatusUpdater({
     eventAction: string | null = null,
     opts: { requireReason?: boolean; requireFiles?: boolean } = {}
   ) => {
-    if (opts.requireReason && !reason.trim()) {
+    let finalReason = reason.trim();
+    if (eventAction === "PAUSE" && !finalReason) {
+      finalReason = "On Break";
+    }
+
+    if (opts.requireReason && !finalReason) {
       toast.error("Please provide a reason.");
       return;
     }
@@ -125,7 +130,7 @@ export default function StatusUpdater({
         fd.append("ticketId", ticketId);
         fd.append("newStatus", nextStatus);
         if (eventAction) fd.append("eventAction", eventAction);
-        if (reason) fd.append("reason", reason);
+        if (finalReason) fd.append("reason", finalReason);
         files.forEach((f) => fd.append("files", f));
 
         const result = await updateTicketStatusAction(fd);
@@ -447,7 +452,7 @@ export default function StatusUpdater({
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "0.25rem 0" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
             <label htmlFor="pause-reason" style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-              Reason for Pausing <span style={{ color: "var(--accent)" }}>*</span>
+              Reason for Pausing <span style={{ color: "var(--accent-brand)" }}>*</span>
             </label>
             <textarea
               id="pause-reason"
@@ -549,7 +554,7 @@ export default function StatusUpdater({
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
             <label htmlFor="cancel-reason" style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--destructive)" }}>
-              Reason for Cancelling <span style={{ color: "var(--accent)" }}>*</span>
+              Reason for Cancelling <span style={{ color: "var(--accent-brand)" }}>*</span>
             </label>
             <textarea
               id="cancel-reason"

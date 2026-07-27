@@ -288,7 +288,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                   />
                 </div>
                 {phoneFocused && !phone.match(/^\d{9,13}$/) && (
-                  <span style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: "0.25rem", display: "block" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--accent-brand)", marginTop: "0.25rem", display: "block" }}>
                     Masukkan 9-13 digit angka.
                   </span>
                 )}

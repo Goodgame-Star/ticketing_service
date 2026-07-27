@@ -337,7 +337,7 @@ a:hover { color: var(--primary-dark); }
 }
 
 .btn-danger {
-  background: var(--accent);
+  background: var(--accent-brand);
   color: var(--white);
   box-shadow: 0 2px 8px rgba(205, 36, 38, 0.25);
 }
@@ -383,12 +383,12 @@ a:hover { color: var(--primary-dark); }
   box-shadow: 0 0 0 3px rgba(22, 70, 157, 0.1);
 }
 .form-input::placeholder { color: var(--text-muted); }
-.form-input.error { border-color: var(--accent); }
+.form-input.error { border-color: var(--accent-brand); }
 .form-input.error:focus { box-shadow: 0 0 0 3px rgba(205, 36, 38, 0.1); }
 
 .form-error {
   font-size: 0.8125rem;
-  color: var(--accent);
+  color: var(--accent-brand);
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -644,7 +644,7 @@ tbody td {
   right: 4px;
   width: 8px;
   height: 8px;
-  background: var(--accent);
+  background: var(--accent-brand);
   border-radius: 50%;
   border: 2px solid var(--cream);
   animation: pulse-dot 2s ease infinite;
