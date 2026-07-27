@@ -260,9 +260,10 @@ export default function DashboardShell({ children, role, userName, userId, isCoo
               <Link
                 key={item.href}
                 href={item.href}
-                className={`sidebar-link ${isActive ? "active" : ""} ${collapsed ? "collapsed" : ""}`}
+                className={`sidebar-link ${isActive ? "active" : ""} ${collapsed ? "collapsed" : ""}`.trim().replace(/\s+/g, " ")}
                 onClick={() => setSidebarOpen(false)}
                 title={collapsed ? item.label : undefined}
+                suppressHydrationWarning
               >
                 {item.icon}
                 {!collapsed && <span>{item.label}</span>}

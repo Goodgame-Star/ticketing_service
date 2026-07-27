@@ -43,7 +43,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
   const [gridDevice, setGridDevice] = useState("");
 
   // Step 3: Service Details (Case)
-  const [ticketType, setTicketType] = useState(""); // service, cleaning, upgrade, pc_build, warranty_claim
+  const [ticketType, setTicketType] = useState("service"); // default active
   const [deviceType, setDeviceType] = useState(""); // actual Prisma enum: Laptop_Office, PC_Office, etc.
   const [deviceName, setDeviceName] = useState(""); // "Device Type (Optional)" in user terms
   const [deviceSn, setDeviceSn] = useState("");
@@ -267,8 +267,8 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
               {errors.customerName && <span className="form-error"><AlertCircle size={12} />{errors.customerName}</span>}
             </div>
 
-            <div style={{ display: "flex", gap: "1rem" }}>
-              <div className="form-group" style={{ flex: 1 }}>
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+              <div className="form-group" style={{ flex: "1 1 250px" }}>
                 <label className="form-label">Nomor HP / WhatsApp *</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "0" }}>
                   <span style={{ padding: "0.625rem 0.75rem", background: "var(--cream-dark)", border: "1.5px solid var(--border)", borderRight: "none", borderRadius: "var(--radius-md) 0 0 var(--radius-md)", fontSize: "0.9375rem", color: "var(--text-secondary)", fontWeight: 600, flexShrink: 0, lineHeight: "1.5" }}>+62</span>
@@ -295,7 +295,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                 {errors.phone && <span className="form-error"><AlertCircle size={12} />{errors.phone}</span>}
               </div>
 
-              <div className="form-group" style={{ flex: 1 }}>
+              <div className="form-group" style={{ flex: "1 1 250px" }}>
                 <label className="form-label">Customer Email <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.8rem" }}>(opsional)</span></label>
                 <input
                   type="email"
@@ -317,10 +317,13 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
             {errors.gridDevice && <div className="form-error" style={{ textAlign: "center", marginBottom: "1rem" }}><AlertCircle size={12} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }}/>{errors.gridDevice}</div>}
             
             <div style={{ 
-              display: "grid", 
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", 
+              display: "flex", 
+              flexWrap: "wrap",
+              justifyContent: "center",
               gap: "1.25rem",
-              marginTop: "0.5rem" 
+              marginTop: "0.5rem",
+              maxWidth: "600px",
+              margin: "0.5rem auto 0"
             }}>
               {DEVICES.map(d => (
                 <button
@@ -328,9 +331,12 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                   type="button"
                   onClick={() => {
                     setGridDevice(d.id);
-                    setTicketType(""); // Reset case when device changes
+                    if (d.id === "Build PC") setTicketType("pc_build");
+                    else setTicketType("service");
                   }}
                   style={{
+                    flex: "1 1 140px",
+                    maxWidth: "180px",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -367,8 +373,32 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                     key={caseType}
                     type="button"
                     onClick={() => setTicketType(caseType)}
-                    className={ticketType === caseType ? "btn btn-primary" : "btn btn-outline"}
-                    style={{ borderRadius: "20px", padding: "0.4rem 1.25rem" }}
+                    style={{
+                      flex: 1,
+                      minWidth: "max-content",
+                      textAlign: "center", 
+                      borderRadius: "20px", 
+                      padding: "0.5rem 0.5rem",
+                      fontSize: "0.85rem",
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      border: "none",
+                      background: ticketType === caseType ? "var(--primary)" : "#1e293b",
+                      color: "#fff",
+                      boxShadow: ticketType === caseType ? "0 4px 12px rgba(22, 70, 157, 0.3)" : "none"
+                    }}
+                    onMouseEnter={e => {
+                      if (ticketType !== caseType) {
+                        e.currentTarget.style.background = "var(--primary)";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (ticketType !== caseType) {
+                        e.currentTarget.style.background = "#1e293b";
+                      }
+                    }}
                   >
                     {labels[caseType]}
                   </button>
@@ -407,8 +437,8 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                  <div className="form-group" style={{ flex: 1, minWidth: "200px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div className="form-group">
                     <label className="form-label">Device Type *</label>
                     <select className={`form-input ${errors.deviceType ? "error" : ""}`} value={deviceType} onChange={e => setDeviceType(e.target.value)}>
                       <option value="">Pilih Kategori Spesifik</option>
@@ -430,12 +460,12 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                     {errors.deviceType && <span className="form-error"><AlertCircle size={12} />{errors.deviceType}</span>}
                   </div>
 
-                  <div className="form-group" style={{ flex: 1, minWidth: "200px" }}>
+                  <div className="form-group">
                     <label className="form-label">Device Type (Nama) <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(opsional)</span></label>
                     <input className="form-input" value={deviceName} onChange={e => setDeviceName(e.target.value)} placeholder="Misal: ASUS ROG G15" />
                   </div>
 
-                  <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+                  <div className="form-group">
                     <label className="form-label">SN <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(opsional)</span></label>
                     <input className="form-input" value={deviceSn} onChange={e => setDeviceSn(e.target.value)} placeholder="Misal: 12345ABCD" />
                   </div>
