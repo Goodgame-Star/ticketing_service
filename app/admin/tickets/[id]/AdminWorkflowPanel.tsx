@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { adminUpdateTicketStatusAction } from "@/app/actions/admin";
 import { uploadDeliveryProofAction } from "@/app/actions/delivery";
 import toast from "react-hot-toast";
-import { CheckCircle, Truck, Package, Flag, Printer, Upload } from "lucide-react";
+import { Upload, X, FileText, Image as ImageIcon, Video, Loader2, CheckCircle, Truck, Package, Flag, Printer } from "lucide-react";
 import Modal from "@/components/ui/Modal";
+import { compressFile, normalizeFileType } from "@/lib/compress";
 
 type TicketStatus =
   | "waiting" | "on_progress" | "done" | "ready_for_pickup"
@@ -54,9 +55,17 @@ export default function AdminWorkflowPanel({ ticketId, currentStatus, pickupMeth
     }
     
     startTransition(async () => {
+      let uploadFile = normalizeFileType(file);
+      toast("Processing file...", { id: "compress", icon: "⏳" });
+      try {
+        uploadFile = await compressFile(uploadFile);
+      } catch (err) {
+        console.warn("Compression failed", err);
+      }
+      toast.dismiss("compress");
       const fd = new FormData();
       fd.append("ticketId", ticketId);
-      fd.append("file", file);
+      fd.append("file", uploadFile);
       
       if (activeDialog === "courier_handover") {
         fd.append("status", "handed_to_courier");
@@ -225,7 +234,7 @@ export default function AdminWorkflowPanel({ ticketId, currentStatus, pickupMeth
             <label className="text-sm font-medium">Upload Payment Proof (Required)</label>
             <input 
               type="file" 
-              accept="image/*" 
+              accept="image/*,image/heic,image/heif" 
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="form-input"
               required
@@ -248,7 +257,7 @@ export default function AdminWorkflowPanel({ ticketId, currentStatus, pickupMeth
             <label className="text-sm font-medium">Upload Progress Proof / Handover Photo (Required)</label>
             <input 
               type="file" 
-              accept="image/*" 
+              accept="image/*,image/heic,image/heif" 
               onChange={(e) => setFile(e.target.files?.[0] || null)}
               className="form-input"
               required

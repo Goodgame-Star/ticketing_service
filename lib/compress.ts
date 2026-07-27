@@ -12,8 +12,8 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const IMAGE_MAX_DIMENSION = 2048;
-const IMAGE_QUALITY = 0.85;
+const IMAGE_MAX_DIMENSION = 1024;
+const IMAGE_QUALITY = 0.75;
 
 /** Map file extensions to canonical MIME types (used when file.type is empty) */
 const EXT_TO_MIME: Record<string, string> = {
@@ -74,7 +74,7 @@ export async function compressImage(file: File): Promise<File> {
       const convertedBlob = await heic2any({
         blob: processFile,
         toType: "image/jpeg",
-        quality: 1 // Quality is handled in the WebP step later
+        quality: 0.85 // Save memory during conversion on iOS
       });
       const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
       const baseName = processFile.name.replace(/\.[^/.]+$/, "");
@@ -123,10 +123,10 @@ export async function compressImage(file: File): Promise<File> {
           }
           // Derive a clean output filename
           const baseName = processFile.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
-          const outName = `${baseName}.webp`;
-          resolve(new File([blob], outName, { type: "image/webp" }));
+          const outName = `${baseName}.jpg`;
+          resolve(new File([blob], outName, { type: "image/jpeg" }));
         },
-        "image/webp",
+        "image/jpeg",
         IMAGE_QUALITY
       );
     };

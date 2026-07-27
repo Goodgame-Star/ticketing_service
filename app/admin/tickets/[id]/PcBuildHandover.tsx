@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UploadCloud, CheckCircle2, Clock, Lock, Camera, Eye, RefreshCcw } from "lucide-react";
 import { uploadRevisionBuildAction, uploadFirstBuildAction } from "@/app/actions/sales";
 import toast from "react-hot-toast";
+import { compressFile, normalizeFileType } from "@/lib/compress";
 
 interface PcBuildHandoverProps {
   ticketId: string;
@@ -56,32 +57,40 @@ export default function PcBuildHandover({
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type.startsWith("image/") || droppedFile.type === "application/pdf") {
+      let droppedFile = normalizeFileType(e.dataTransfer.files[0]);
+      if (droppedFile.type.startsWith("image/") || droppedFile.type.startsWith("video/") || droppedFile.type === "application/pdf") {
+        toast("Processing file...", { id: "compress", icon: "⏳" });
+        droppedFile = await compressFile(droppedFile);
+        toast.dismiss("compress");
+
         setFile(droppedFile);
         setPreviewUrl(URL.createObjectURL(droppedFile));
         setFileType(droppedFile.type === "application/pdf" ? "pdf" : "image");
       } else {
-        toast.error("Please upload an image or PDF file");
+        toast.error("Please upload an image, video, or PDF file");
       }
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.type.startsWith("image/") || selectedFile.type === "application/pdf") {
+      let selectedFile = normalizeFileType(e.target.files[0]);
+      if (selectedFile.type.startsWith("image/") || selectedFile.type.startsWith("video/") || selectedFile.type === "application/pdf") {
+        toast("Processing file...", { id: "compress", icon: "⏳" });
+        selectedFile = await compressFile(selectedFile);
+        toast.dismiss("compress");
+
         setFile(selectedFile);
         setPreviewUrl(URL.createObjectURL(selectedFile));
         setFileType(selectedFile.type === "application/pdf" ? "pdf" : "image");
       } else {
-        toast.error("Please upload an image or PDF file");
+        toast.error("Please upload an image, video, or PDF file");
       }
     }
   };
@@ -116,13 +125,18 @@ export default function PcBuildHandover({
   };
 
   // ── First Build handlers ───────────────────────────────────────────────────
-  const handleFbFileSelect = (selected: File) => {
-    if (selected.type.startsWith("image/") || selected.type === "application/pdf") {
-      setFbFile(selected);
-      setFbPreviewUrl(URL.createObjectURL(selected));
-      setFbFileType(selected.type === "application/pdf" ? "pdf" : "image");
+  const handleFbFileSelect = async (selected: File) => {
+    let normalized = normalizeFileType(selected);
+    if (normalized.type.startsWith("image/") || normalized.type.startsWith("video/") || normalized.type === "application/pdf") {
+      toast("Processing file...", { id: "compress", icon: "⏳" });
+      normalized = await compressFile(normalized);
+      toast.dismiss("compress");
+
+      setFbFile(normalized);
+      setFbPreviewUrl(URL.createObjectURL(normalized));
+      setFbFileType(normalized.type === "application/pdf" ? "pdf" : "image");
     } else {
-      toast.error("Please upload an image or PDF file");
+      toast.error("Please upload an image, video, or PDF file");
     }
   };
 
@@ -225,7 +239,7 @@ export default function PcBuildHandover({
               onDrop={handleFbDrop}
               style={{ borderRadius: "12px", border: fbDragActive ? "2px dashed var(--primary)" : "1.5px dashed var(--border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "220px", background: fbDragActive ? "rgba(22,70,157,0.04)" : "var(--white)", color: "var(--text-muted)", gap: "0.5rem", cursor: "pointer", position: "relative", transition: "all 0.2s" }}
             >
-              <input type="file" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && handleFbFileSelect(e.target.files[0])} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} />
+              <input type="file" accept="image/*,video/*,application/pdf,image/heic,image/heif" onChange={(e) => e.target.files?.[0] && handleFbFileSelect(e.target.files[0])} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} />
               <Camera size={32} style={{ color: "var(--primary)" }} />
               <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Upload first build layout</span>
               <span style={{ fontSize: "0.75rem" }}>Drag & drop or click to browse</span>
@@ -343,7 +357,7 @@ export default function PcBuildHandover({
             >
               <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,video/*,application/pdf,image/heic,image/heif"
                 onChange={handleFileChange}
                 style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
               />
