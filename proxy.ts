@@ -13,6 +13,7 @@ function getBaseUrl(request: NextRequest) {
 const PUBLIC_ROUTES = ["/login", "/register", "/ticket", "/unauthorized"];
 const ADMIN_ROUTES = ["/admin"];
 const TECHNICIAN_ROUTES = ["/technician"];
+const SALES_ROUTES = ["/sales"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -51,8 +52,7 @@ export async function proxy(request: NextRequest) {
   // Role-based access
   if (
     ADMIN_ROUTES.some((r) => pathname.startsWith(r)) &&
-    session.role !== "Administrator" &&
-    session.role !== "Sales"
+    session.role !== "Administrator"
   ) {
     return NextResponse.redirect(
       new URL(getDashboardRoute(session.role), baseUrl)
@@ -68,14 +68,24 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  if (
+    SALES_ROUTES.some((r) => pathname.startsWith(r)) &&
+    session.role !== "Sales"
+  ) {
+    return NextResponse.redirect(
+      new URL(getDashboardRoute(session.role), baseUrl)
+    );
+  }
+
   return NextResponse.next();
 }
 
 function getDashboardRoute(role: string): string {
   switch (role) {
     case "Administrator":
-    case "Sales":
       return "/admin/dashboard";
+    case "Sales":
+      return "/sales/dashboard";
     case "Technician":
       return "/technician/dashboard";
     default:

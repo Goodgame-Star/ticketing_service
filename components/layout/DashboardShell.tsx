@@ -52,11 +52,10 @@ const NAV_ITEMS: Record<string, NavItem[]> = {
     { href: "/admin/profile", label: "Profile", icon: <User size={18} /> },
   ],
   sales: [
-    { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-    { href: "/admin/tickets", label: "All Tickets", icon: <Ticket size={18} /> },
-    { href: "/admin/tickets/create", label: "Create Ticket", icon: <PlusCircle size={18} /> },
-    { href: "/admin/stores", label: "Stores", icon: <Store size={18} /> },
-    { href: "/admin/profile", label: "Profile", icon: <User size={18} /> },
+    { href: "/sales/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+    { href: "/sales/tickets", label: "My Tickets", icon: <Ticket size={18} /> },
+    { href: "/sales/tickets/create", label: "Create Ticket", icon: <PlusCircle size={18} /> },
+    { href: "/sales/profile", label: "Profile", icon: <User size={18} /> },
   ],
 };
 

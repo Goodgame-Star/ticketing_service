@@ -206,9 +206,14 @@ a:hover { color: var(--primary-dark); }
   to { transform: rotate(360deg); }
 }
 
-@keyframes growBar {
-  from { transform: scaleY(0); opacity: 0; }
-  to   { transform: scaleY(1); opacity: 1; }
+@keyframes growBarVertical {
+  from { transform: scaleY(0); transform-origin: bottom; opacity: 0; }
+  to   { transform: scaleY(1); transform-origin: bottom; opacity: 1; }
+}
+
+@keyframes growBarHorizontal {
+  from { transform: scaleX(0); transform-origin: left; opacity: 0; }
+  to   { transform: scaleX(1); transform-origin: left; opacity: 1; }
 }
 
 @keyframes countUp {
@@ -225,6 +230,8 @@ a:hover { color: var(--primary-dark); }
 .animate-slide-in     { animation: slideInRight 0.3s ease forwards; }
 .animate-slide-up     { animation: slideUp 0.4s ease forwards; }
 .animate-spin-custom  { animation: spin 0.8s linear infinite; }
+.animate-grow-vertical { animation: growBarVertical 0.8s ease both; }
+.animate-grow-horizontal { animation: growBarHorizontal 0.8s ease both; }
 
 /* ─── Cards ──────────────────────────────────────────────────────────────── */
 .card {

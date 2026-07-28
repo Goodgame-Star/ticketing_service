@@ -6,6 +6,7 @@ import { AlertCircle, ChevronLeft, ChevronRight, Check, Laptop, Monitor, Printer
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import FileUpload from "@/components/ui/FileUpload";
+import TagInput from "@/components/ui/TagInput";
 
 type Props = {
   storeLocations: { id: string; name: string; code: string }[];
@@ -54,7 +55,12 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
   const [checkDiagnosisFee, setCheckDiagnosisFee] = useState(true); // Default true for Service
   const [cleaningPackage, setCleaningPackage] = useState(""); // Basic_Cleaning, Full_Repaste, Full_Repaste_CPU_GPU
   const [selectedUpgrades, setSelectedUpgrades] = useState<string[]>([]);
-  const [ticketFiles, setTicketFiles] = useState<File[]>([]);
+  // Step 3 file attachments — stored as R2 temp URLs immediately after upload
+  // This avoids keeping File objects in state across step navigation (causes hydration issues)
+  const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [pcComponents, setPcComponents] = useState<string[]>([]);
   
   // Keep overnight/pickup in case needed later, or default
   const [pickupMethod, setPickupMethod] = useState("self_pickup");
@@ -104,6 +110,30 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
   const next = () => { if (validateStep()) setStep(s => s + 1); };
   const back = () => setStep(s => s - 1);
 
+  const handleFileUpload = async (files: File[]) => {
+    setFiles(files);
+    if (files.length === 0) {
+      setUploadedFileUrls([]);
+      return;
+    }
+    setIsUploadingFiles(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("files", f));
+      const res = await fetch("/api/upload-temp", { method: "POST", body: fd });
+      const json = await res.json() as { uploaded?: { url: string }[]; error?: string };
+      if (json.error) {
+        toast.error(`Upload failed: ${json.error}`);
+      } else {
+        setUploadedFileUrls((json.uploaded ?? []).map(u => u.url));
+      }
+    } catch (err: any) {
+      toast.error("Failed to upload files. Please try again.");
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
   const submit = () => {
     if (!validateStep()) return;
 
@@ -133,7 +163,10 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
       fd.append("pickup_method", pickupMethod);
       if (deviceName) fd.append("device_name", deviceName);
       if (deviceSn) fd.append("device_sn", deviceSn);
-      if (conditions.length > 0) fd.append("device_condition", conditions.join(", ")); // Saved to new field
+      if (pcComponents.length > 0) {
+        pcComponents.forEach((c) => fd.append("pcComponents", c));
+      }
+      fd.append("device_condition", conditions.join(", ")); // Saved to new field
 
       let accList = [...selectedAccessories];
       if (customAccessory.trim()) accList.push(customAccessory.trim());
@@ -151,7 +184,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
         selectedUpgrades.forEach(id => fd.append("upgrade_ids", id));
       }
       
-      ticketFiles.forEach(f => fd.append("ticket_files", f));
+      uploadedFileUrls.forEach(url => fd.append("preuploaded_urls", url));
       fd.append("is_for_self", "0");
 
       try {
@@ -365,54 +398,90 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
             <h2 style={{ marginBottom: "0" }}>Service Details: {gridDevice}</h2>
             
             {/* Case Selection Tabs */}
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
-              {getAvailableCases().map(caseType => {
-                const labels: Record<string, string> = { service: "Service", cleaning: "Cleaning", upgrade: "Upgrade Part", pc_build: "Build PC", warranty_claim: "Claim" };
-                return (
-                  <button
-                    key={caseType}
-                    type="button"
-                    onClick={() => setTicketType(caseType)}
-                    style={{
-                      flex: 1,
-                      minWidth: "max-content",
-                      textAlign: "center", 
-                      borderRadius: "20px", 
-                      padding: "0.5rem 0.5rem",
-                      fontSize: "0.85rem",
-                      whiteSpace: "nowrap",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      border: "none",
-                      background: ticketType === caseType ? "var(--primary)" : "#1e293b",
-                      color: "#fff",
-                      boxShadow: ticketType === caseType ? "0 4px 12px rgba(22, 70, 157, 0.3)" : "none"
-                    }}
-                    onMouseEnter={e => {
-                      if (ticketType !== caseType) {
-                        e.currentTarget.style.background = "var(--primary)";
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (ticketType !== caseType) {
-                        e.currentTarget.style.background = "#1e293b";
-                      }
-                    }}
-                  >
-                    {labels[caseType]}
-                  </button>
-                );
-              })}
-            </div>
+            {gridDevice !== "Build PC" && (
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderBottom: "1px solid var(--border)", paddingBottom: "1rem" }}>
+                {getAvailableCases().map(caseType => {
+                  const labels: Record<string, string> = { service: "Service", cleaning: "Cleaning", upgrade: "Upgrade Part", pc_build: "Build PC", warranty_claim: "Claim" };
+                  return (
+                    <button
+                      key={caseType}
+                      type="button"
+                      onClick={() => setTicketType(caseType)}
+                      style={{
+                        flex: 1,
+                        minWidth: "max-content",
+                        textAlign: "center", 
+                        borderRadius: "20px", 
+                        padding: "0.5rem 0.5rem",
+                        fontSize: "0.85rem",
+                        whiteSpace: "nowrap",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        border: "none",
+                        background: ticketType === caseType ? "var(--primary)" : "#1e293b",
+                        color: "#fff",
+                        boxShadow: ticketType === caseType ? "0 4px 12px rgba(22, 70, 157, 0.3)" : "none"
+                      }}
+                      onMouseEnter={e => {
+                        if (ticketType !== caseType) {
+                          e.currentTarget.style.background = "var(--primary)";
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (ticketType !== caseType) {
+                          e.currentTarget.style.background = "#1e293b";
+                        }
+                      }}
+                    >
+                      {labels[caseType]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {errors.ticketType && <span className="form-error" style={{ marginTop: "-1rem" }}><AlertCircle size={12} />{errors.ticketType}</span>}
 
-            {/* If Build PC or Claim (TBA) */}
-            {(ticketType === "pc_build" || ticketType === "warranty_claim") && (
+            {/* Claim (TBA) */}
+            {ticketType === "warranty_claim" && (
               <div style={{ textAlign: "center", padding: "3rem 1rem", background: "var(--cream)", borderRadius: "12px", color: "var(--text-muted)" }}>
                 <Cpu size={48} style={{ margin: "0 auto 1rem", opacity: 0.5 }} />
                 <h3>Coming Soon</h3>
                 <p>This flow is currently being updated. Check back later!</p>
+              </div>
+            )}
+
+            {/* PC Build */}
+            {ticketType === "pc_build" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div className="form-group">
+                  <label className="form-label">PC Components (Optional)</label>
+                  <TagInput
+                    value={pcComponents}
+                    onChange={setPcComponents}
+                    placeholder="Type component name and press Enter (e.g. RTX 4060, i5-13400F)"
+                  />
+                  <p className="form-help">Enter the list of parts needed or provided for this PC Build.</p>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Notes / Instructions</label>
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Describe any specific instructions or build requirements..."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Ticket Attachment <span style={{ color: "var(--accent)" }}>*</span></label>
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Upload any reference pictures or build lists.</p>
+                  <FileUpload value={files} onChange={handleFileUpload} maxFiles={5} />
+                  {isUploadingFiles && <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "0.5rem" }}>⏳ Uploading files…</p>}
+                  {errors.ticketFiles && <span className="form-error"><AlertCircle size={12} />{errors.ticketFiles}</span>}
+                </div>
               </div>
             )}
 
@@ -519,7 +588,8 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                 <div className="form-group">
                   <label className="form-label">Ticket Attachment</label>
                   <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Upload photo/video of the device.</p>
-                  <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={5} />
+                  <FileUpload value={files} onChange={handleFileUpload} maxFiles={5} />
+                  {isUploadingFiles && <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "0.5rem" }}>⏳ Uploading files…</p>}
                 </div>
               </div>
             )}
@@ -559,7 +629,8 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
                 <div className="form-group">
                   <label className="form-label">Attachment (Upgraded Item) *</label>
                   <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Please attach a photo of the item to be upgraded.</p>
-                  <FileUpload onChange={(files) => setTicketFiles(files)} maxFiles={5} />
+                  <FileUpload value={files} onChange={handleFileUpload} maxFiles={5} />
+                  {isUploadingFiles && <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "0.5rem" }}>⏳ Uploading files…</p>}
                 </div>
               </div>
             )}
@@ -608,7 +679,7 @@ export default function CreateTicketForm({ storeLocations, technicians, sales, u
             <button
               type="button"
               onClick={submit}
-              disabled={isPending || ticketType === "pc_build" || ticketType === "warranty_claim"}
+              disabled={isPending || ticketType === "warranty_claim"}
               className="btn btn-primary"
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             >

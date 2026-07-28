@@ -91,33 +91,52 @@ export async function createTicketAction(formData: FormData) {
   const public_share_token = randomBytes(24).toString("hex");
 
   // ── Handle attachments FIRST ──
-  const ticketFiles = (formData.getAll("ticket_files") as File[]).filter(f => f.size > 0);
-  const progressFiles = (formData.getAll("progress_files") as File[]).filter(f => f.size > 0);
-  const files = [...ticketFiles, ...progressFiles];
-  
+  // Support two modes:
+  //   1. Pre-uploaded temp URLs (multi-step form) — passed as "preuploaded_urls[]" strings
+  //   2. Raw File uploads (legacy single-step forms) — passed as "ticket_files" and "progress_files"
+  const preuploadedUrls = (formData.getAll("preuploaded_urls") as string[]).filter(Boolean);
+
   let uploadedFiles: { publicUrl: string, fileType: "image" | "video" | "pdf" }[] = [];
   let firstUploadedUrl: string | null = null;
 
-  if (files.length > 0) {
-    const uploadOps = files.map(async (file) => {
-      if (file.size === 0) return null;
-
-      const ext = getExt(file.type, file.name);
-      const filename = `${ticket_code}_${nanoid()}.${ext}`;
-      const path = `tickets/${session.userId}/${filename}`;
-
-      const publicUrl = await uploadToR2(file, path);
-      const fileType = getFileType(file.type);
-
-      return { publicUrl, fileType };
+  if (preuploadedUrls.length > 0) {
+    // Mode 1: files already in R2 — just derive the type from extension
+    uploadedFiles = preuploadedUrls.map((url) => {
+      const ext = url.split(".").pop()?.toLowerCase() ?? "";
+      const fileType: "image" | "video" | "pdf" =
+        ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].includes(ext) ? "image" :
+        ["mp4", "webm", "mov", "avi"].includes(ext) ? "video" :
+        "pdf";
+      return { publicUrl: url, fileType };
     });
+    firstUploadedUrl = uploadedFiles[0]?.publicUrl || null;
+  } else {
+    // Mode 2: raw files (legacy)
+    const ticketFiles = (formData.getAll("ticket_files") as File[]).filter(f => f.size > 0);
+    const progressFiles = (formData.getAll("progress_files") as File[]).filter(f => f.size > 0);
+    const files = [...ticketFiles, ...progressFiles];
 
-    try {
-      uploadedFiles = (await Promise.all(uploadOps)).filter((f): f is { publicUrl: string, fileType: "image" | "video" | "pdf" } => f !== null);
-      firstUploadedUrl = uploadedFiles[0]?.publicUrl || null;
-    } catch (err: any) {
-      console.error("[UPLOAD ERROR]", err);
-      return { error: `Failed to upload attachments. ${err.message}` };
+    if (files.length > 0) {
+      const uploadOps = files.map(async (file) => {
+        if (file.size === 0) return null;
+
+        const ext = getExt(file.type, file.name);
+        const filename = `${ticket_code}_${nanoid()}.${ext}`;
+        const path = `tickets/${session.userId}/${filename}`;
+
+        const publicUrl = await uploadToR2(file, path);
+        const fileType = getFileType(file.type);
+
+        return { publicUrl, fileType };
+      });
+
+      try {
+        uploadedFiles = (await Promise.all(uploadOps)).filter((f): f is { publicUrl: string, fileType: "image" | "video" | "pdf" } => f !== null);
+        firstUploadedUrl = uploadedFiles[0]?.publicUrl || null;
+      } catch (err: any) {
+        console.error("[UPLOAD ERROR]", err);
+        return { error: `Failed to upload attachments. ${err.message}` };
+      }
     }
   }
 
@@ -216,7 +235,7 @@ export async function createTicketAction(formData: FormData) {
       break;
     }
     case "pc_build": {
-      const components = JSON.parse((formData.get("components") as string) || "[]") as string[];
+      const components = formData.getAll("pcComponents") as string[];
       const pcOps: Promise<unknown>[] = [
         db.ticketPcBuildDetail.create({ data: { ticket_id: ticket.id, first_build_url: firstUploadedUrl } }),
       ];
@@ -251,7 +270,9 @@ export async function createTicketAction(formData: FormData) {
     }).catch((err) => console.error("[EMAIL CREATE ERROR]", err));
   }
 
-  const redirectUrl = session.role === "Administrator" || session.role === "Sales"
+  const redirectUrl = session.role === "Sales"
+    ? `/sales/tickets`
+    : session.role === "Administrator"
     ? `/admin/tickets` 
     : (session.role === "Technician" ? `/technician/tickets` : `/ticket/${ticket.public_share_token}`);
     

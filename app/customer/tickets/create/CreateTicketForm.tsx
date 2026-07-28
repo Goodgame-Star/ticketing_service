@@ -78,6 +78,8 @@ export default function CreateTicketForm({ upgrades, technicians, sales, userPro
   const [accessories, setAccessories] = useState("");
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [customAccessory, setCustomAccessory] = useState("");
+  const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [phoneFocused, setPhoneFocused] = useState(false);
 
@@ -127,6 +129,30 @@ export default function CreateTicketForm({ upgrades, technicians, sales, userPro
   const next = () => { if (validateStep()) setStep((s) => s + 1); };
   const back = () => setStep((s) => s - 1);
 
+  const handleFileUpload = async (files: File[]) => {
+    setFiles(files);
+    if (files.length === 0) {
+      setUploadedFileUrls([]);
+      return;
+    }
+    setIsUploadingFiles(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("files", f));
+      const res = await fetch("/api/upload-temp", { method: "POST", body: fd });
+      const json = await res.json() as { uploaded?: { url: string }[]; error?: string };
+      if (json.error) {
+        toast.error(`Upload failed: ${json.error}`);
+      } else {
+        setUploadedFileUrls((json.uploaded ?? []).map(u => u.url));
+      }
+    } catch (err: any) {
+      toast.error("Failed to upload files. Please try again.");
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
   const submit = () => {
     if (!validateStep()) return;
     startTransition(async () => {
@@ -152,8 +178,8 @@ export default function CreateTicketForm({ upgrades, technicians, sales, userPro
       const finalAccessories = ticketType === "cleaning" ? accList.join(", ") : accessories;
       if (finalAccessories) fd.append("accessories", finalAccessories);
 
-      // CRITICAL FIX: Append the selected files to the form data!
-      files.forEach(f => fd.append("ticket_files", f));
+      // CRITICAL FIX: Append the pre-uploaded URLs instead of raw files!
+      uploadedFileUrls.forEach(url => fd.append("preuploaded_urls", url));
 
       try {
         const result = await createTicketAction(fd) as any;
@@ -427,7 +453,8 @@ export default function CreateTicketForm({ upgrades, technicians, sales, userPro
                 </div>
                 <div className="form-group">
                   <label className="form-label">Attachments</label>
-                  <FileUpload onChange={setFiles} />
+                  <FileUpload value={files} onChange={handleFileUpload} />
+                  {isUploadingFiles && <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "0.5rem" }}>⏳ Uploading files…</p>}
                 </div>
               </>
             )}

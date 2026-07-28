@@ -75,11 +75,15 @@ export default function StatusUpdater({
   currentStatus,
   timeLogs = [],
   pickupMethod = "self_pickup",
+  isSalesMode = false,
+  ticketType = "service",
 }: {
   ticketId: string;
   currentStatus: Status;
   timeLogs?: TimeLog[];
   pickupMethod?: "self_pickup" | "courier" | null;
+  isSalesMode?: boolean;
+  ticketType?: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [activeDialog, setActiveDialog] = useState<
@@ -188,8 +192,11 @@ export default function StatusUpdater({
             {info?.text ?? currentStatus.replace(/_/g, " ")}
           </div>
 
-          {/* ── Self-pickup path ── */}
-          {currentStatus === "done" && pickupMethod !== "courier" && (
+          {/* Role Check for Handover */}
+          {(ticketType === "pc_build" ? isSalesMode : !isSalesMode) ? (
+            <>
+              {/* ── Self-pickup path ── */}
+              {currentStatus === "done" && pickupMethod !== "courier" && (
             <button
               onClick={() => setActiveDialog("ready_confirm")}
               disabled={isPending}
@@ -260,6 +267,14 @@ export default function StatusUpdater({
             >
               <PackageCheck size={16} /> Confirm Delivered
             </button>
+          )}
+            </>
+          ) : (
+            <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", padding: "0.5rem 0" }}>
+              {ticketType === "pc_build" 
+                ? "Waiting for Sales to manage handover." 
+                : "Waiting for Technician to manage handover."}
+            </div>
           )}
         </div>
 
@@ -395,6 +410,8 @@ export default function StatusUpdater({
   }
 
   // ── Default work-in-progress view ─────────────────────────────────────────
+  if (isSalesMode) return null;
+  
   return (
     <>
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

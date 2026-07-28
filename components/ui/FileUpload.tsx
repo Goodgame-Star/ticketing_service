@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, DragEvent, ChangeEvent } from "react";
+import { useRef, useState, useEffect, DragEvent, ChangeEvent } from "react";
 import { Upload, X, FileText, Image as ImageIcon, Video, Loader2 } from "lucide-react";
 import {
   compressFile,
@@ -18,6 +18,7 @@ interface FileItem {
 
 interface FileUploadProps {
   onChange: (files: File[]) => void;
+  value?: File[];
   accept?: string;
   maxSizeMB?: number;
   maxFiles?: number;
@@ -40,12 +41,28 @@ export default function FileUpload({
   maxSizeMB = 64,
   maxFiles = 10,
   capture,
+  value,
 }: FileUploadProps) {
   const [items, setItems] = useState<FileItem[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value && value.length > 0 && items.length === 0) {
+      const newItems: FileItem[] = value.map(file => {
+        const resolvedMime = resolveMimeType(file);
+        return {
+          file,
+          preview: resolvedMime.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+          originalSize: file.size,
+          compressed: false,
+        };
+      });
+      setItems(newItems);
+    }
+  }, [value, items.length]);
 
   const validate = (files: File[]): string | null => {
     const totalSize = [...items.map((i) => i.file), ...files].reduce(
